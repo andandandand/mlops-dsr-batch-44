@@ -1,7 +1,14 @@
 import os
 import wandb
 from loadotenv import load_env 
-load_env()
+
+from torchvision.models import resnet18, ResNet
+from torch import nn
+from pathlib import Path
+import torch
+from torchvision.transforms import v2 as transforms
+
+#load_env()
 
 # Local folder and filename for the downloaded model
 MODELS_DIR = "../models"
@@ -10,50 +17,13 @@ MODEL_FILENAME = "best_model.pth"
 os.makedirs(MODELS_DIR, exist_ok=True)
 
 
-<<<<<<< HEAD
-def download_model():
-    """
-    Download a model artifact from Weights & Biases.
-    
-    Retrieves W&B configuration from environment variables and downloads
-    the specified model artifact to the local models directory.
-    
-    Environment variables required:
-        WANDB_ORG: W&B organization name
-        WANDB_PROJECT: W&B project name
-        WANDB_MODEL_NAME: Name of the model artifact
-        WANDB_MODEL_VERSION: Version of the model artifact
-        WANDB_API_KEY: W&B API key for authentication
-    
-    Returns:
-        wandb.Artifact: The downloaded artifact object
-    """
-=======
 def download_artifact():
     # this will raise an assertion error if the variable is not found
     assert 'WANDB_API_KEY' in os.environ, "WANDB_API_KEY not found in environment variables"
->>>>>>> 01d1a7a (adding changes to hello.py and model.py)
     wandb_org = os.environ.get("WANDB_ORG")
     wandb_project = os.environ.get("WANDB_PROJECT")
     wandb_model_name = os.environ.get("WANDB_MODEL_NAME")
     wandb_model_version = os.environ.get("WANDB_MODEL_VERSION")
-<<<<<<< HEAD
-    
-    wandb_api_key = os.getenv("WANDB_API_KEY")
-    wandb.login(key=wandb_api_key)
-    api = wandb.Api()
-    
-    artifact_path = f"{wandb_org}/{wandb_project}/{wandb_model_name}:{wandb_model_version}"
-    artifact = api.artifact(artifact_path, type="model")
-    artifact.download(root=MODELS_DIR)
-    
-    return artifact
-
-
-if __name__ == "__main__":
-    download_model()
-=======
-
 
     wandb_api_key = os.getenv("WANDB_API_KEY")
     wandb.login(key=wandb_api_key)
@@ -68,6 +38,40 @@ if __name__ == "__main__":
 
     artifact.download(root=MODELS_DIR)
 
+def get_raw_model() -> ResNet:
+     '''Get the architecture of the model (random weights), this must match the architecture used during training'''
+     architecture = resnet18(weights=None)
+     architecture.fc = nn.Sequential(
+         nn.Linear(in_features=512, out_features=512),
+         nn.ReLU(),
+         nn.Linear(in_features=512, out_features=6)
+     )
+     
+     return architecture 
 
-download_artifact()
->>>>>>> 01d1a7a (adding changes to hello.py and model.py)
+def load_model() -> ResNet:
+    '''Gives us the model with the trained weights'''
+    download_artifact()
+    # This gets the model architecture with random weights
+    model = get_raw_model()
+    
+    # This loads the weights from the file into a state dictionary
+    model_state_dict_path = Path(MODELS_DIR) / MODEL_FILENAME
+    model_state_dict = torch.load(model_state_dict_path, map_location='cpu')
+    # This merges the trained weights into the model architecture so that it no longer has random weights
+    model.load_state_dict(model_state_dict, strict=True)
+
+    return model
+
+
+def load_transforms() -> transforms.Compose:
+    return transforms.Compose(
+        [
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToImage(),
+            transforms.ToDtype(torch.float32, scale=True),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                                 std=[0.229, 0.224, 0.225]),
+        ]
+    )
